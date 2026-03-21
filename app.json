@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Galeri Cleaner",
+    "slug": "galeri-cleaner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.personal.galericleaner",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Fotoğraf ve videolarınızı inceleyip düzenleyebilmek için galeri erişimi gereklidir.",
+        "NSPhotoLibraryAddUsageDescription": "Fotoğrafları kaydetmek için galeri erişimi gereklidir."
+      }
+    },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Galeri Cleaner, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.",
+          "savePhotosPermission": "Galeri Cleaner, değişiklikleri kaydetmek için galeriye erişmek istiyor.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      "expo-video"
+    ],
+    "newArchEnabled": true
+  }
+}
