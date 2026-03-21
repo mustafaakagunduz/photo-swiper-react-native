@@ -63,7 +63,9 @@ function VideoMedia({ asset, isActive }: VideoMediaProps) {
   // localUri çözümlenince kaynağı yükle
   useEffect(() => {
     if (!localUri) return;
-    player.replace(localUri);
+    player.replaceAsync(localUri).catch((e) =>
+      console.warn('[MediaView] replaceAsync failed:', e),
+    );
   }, [localUri, player]);
 
   // Aktif/pasif duruma göre oynat / durdur

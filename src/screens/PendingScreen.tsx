@@ -1,14 +1,14 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  Image,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
@@ -35,7 +35,6 @@ type DeleteState = 'idle' | 'deleting' | 'done';
 
 export default function PendingScreen({ assets, onBack, onDeleted }: PendingScreenProps) {
   const [deleteState, setDeleteState] = useState<DeleteState>('idle');
-  const [uriMap, setUriMap] = useState<Record<string, string>>({});
 
   // Kurtarılmak istenen asset ID'leri
   const [rescuedIds, setRescuedIds] = useState<Set<string>>(new Set());
@@ -43,24 +42,6 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
   // Tamamlandıktan sonra gösterilecek sayılar
   const [finalDeletedCount, setFinalDeletedCount] = useState(0);
   const [finalRescuedCount, setFinalRescuedCount] = useState(0);
-
-  // ph:// → file:// çözümleme
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      assets.map((a) =>
-        MediaLibrary.getAssetInfoAsync(a)
-          .then((info) => ({ id: a.id, uri: info.localUri ?? a.uri }))
-          .catch(() => ({ id: a.id, uri: a.uri })),
-      ),
-    ).then((results) => {
-      if (cancelled) return;
-      const map: Record<string, string> = {};
-      results.forEach((r) => { map[r.id] = r.uri; });
-      setUriMap(map);
-    });
-    return () => { cancelled = true; };
-  }, [assets]);
 
   // Fotoğrafa dokunulunca kurtarma durumunu toggle et
   const toggleRescue = useCallback((id: string) => {
@@ -110,7 +91,6 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
   const renderItem = useCallback(
     ({ item }: { item: Asset }) => {
       const isVideo = item.mediaType === 'video';
-      const uri = uriMap[item.id];
       const isRescued = rescuedIds.has(item.id);
 
       return (
@@ -119,25 +99,13 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
           onPress={() => toggleRescue(item.id)}
           activeOpacity={0.75}
         >
-          {isVideo ? (
-            /* Video: Image video dosyasını render edemez, placeholder kullan */
-            <View style={styles.videoPlaceholder}>
-              <View style={styles.videoPlayCircle}>
-                <Text style={styles.videoPlayIcon}>▶</Text>
-              </View>
-              {item.duration != null && item.duration > 0 && (
-                <View style={styles.videoDurationBadge}>
-                  <Text style={styles.videoDurationText}>
-                    {formatDuration(item.duration)}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : uri ? (
-            <Image source={{ uri }} style={styles.thumbImg} resizeMode="cover" />
-          ) : (
-            <View style={[styles.thumbImg, styles.thumbPlaceholder]}>
-              <ActivityIndicator size="small" color={COLORS.textTertiary} />
+          {/* expo-image: ph:// URI'larını natively destekler (foto + video ilk kare) */}
+          <Image source={{ uri: item.uri }} style={styles.thumbImg} contentFit="cover" />
+
+          {/* Video süre badge'i */}
+          {isVideo && item.duration != null && item.duration > 0 && (
+            <View style={styles.videoBadge}>
+              <Text style={styles.videoBadgeText}>{formatDuration(item.duration)}</Text>
             </View>
           )}
 
@@ -152,7 +120,7 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
         </TouchableOpacity>
       );
     },
-    [uriMap, rescuedIds, toggleRescue],
+    [rescuedIds, toggleRescue],
   );
 
   // ---- Tamamlandı ekranı ----
@@ -346,33 +314,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  thumbPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-  },
-  // Video placeholder (Image video dosyasını render edemez)
-  videoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#1a1a2e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoPlayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoPlayIcon: {
-    color: '#fff',
-    fontSize: 14,
-    marginLeft: 2,
-  },
-  videoDurationBadge: {
+  // Video süre badge'i
+  videoBadge: {
     position: 'absolute',
     bottom: 4,
     right: 4,
@@ -381,7 +324,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  videoDurationText: {
+  videoBadgeText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: '600',

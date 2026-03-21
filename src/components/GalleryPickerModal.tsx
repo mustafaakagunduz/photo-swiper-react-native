@@ -1,126 +1,28 @@
-import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
 import type { Asset } from '../types';
 
-// ---------------------------------------------------------------------------
-// ThumbnailImage — ph:// URI'larını file:// URI'ya çevirir
-// (React Native Image bileşeni ph:// scheme'i desteklemiyor)
-// ---------------------------------------------------------------------------
+// expo-image ph:// URI'larını natively destekler:
+// fotoğraflar için tam çözünürlük, videolar için otomatik ilk kare thumbnail.
 
-// Fotoğraf thumbnail: ph:// → file:// çözümle, Image ile göster
-const PhotoThumbnail = memo(function PhotoThumbnail({ asset }: { asset: Asset }) {
-  const [resolvedUri, setResolvedUri] = useState<string | null>(
-    asset.uri.startsWith('ph://') ? null : asset.uri,
-  );
-
-  useEffect(() => {
-    if (!asset.uri.startsWith('ph://')) return;
-    let cancelled = false;
-
-    MediaLibrary.getAssetInfoAsync(asset)
-      .then((info) => {
-        if (!cancelled && info.localUri) setResolvedUri(info.localUri);
-      })
-      .catch(() => { /* placeholder görünür */ });
-
-    return () => { cancelled = true; };
-  }, [asset.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!resolvedUri) return <View style={thumbStyles.placeholder} />;
-
-  return (
-    <Image source={{ uri: resolvedUri }} style={thumbStyles.image} resizeMode="cover" />
-  );
-});
-
-// Video thumbnail: Image video dosyasını render edemez, styled placeholder göster
-const VideoThumbnail = memo(function VideoThumbnail({ asset }: { asset: Asset }) {
-  return (
-    <View style={thumbStyles.videoPlaceholder}>
-      <View style={thumbStyles.playCircle}>
-        <Text style={thumbStyles.playIcon}>▶</Text>
-      </View>
-      {asset.duration != null && asset.duration > 0 && (
-        <View style={thumbStyles.durationBadge}>
-          <Text style={thumbStyles.durationText}>
-            {formatThumbDuration(asset.duration)}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-});
-
-// mediaType'a göre doğru bileşeni seç (conditional hook olmaması için ayrıldı)
-const ThumbnailImage = memo(function ThumbnailImage({ asset }: { asset: Asset }) {
-  if (asset.mediaType === 'video') return <VideoThumbnail asset={asset} />;
-  return <PhotoThumbnail asset={asset} />;
-});
-
-function formatThumbDuration(seconds: number): string {
+function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
-
-const thumbStyles = StyleSheet.create({
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: COLORS.card,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  videoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#1a1a2e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playIcon: {
-    color: '#fff',
-    fontSize: 14,
-    marginLeft: 2, // optik hizalama
-  },
-  durationBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  durationText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-});
 
 const GRID_COLS = 3;
 const GAP = 2;
@@ -234,7 +136,23 @@ export default function GalleryPickerModal({
         onPress={() => handleSelect(item, index)}
         activeOpacity={0.7}
       >
-        <ThumbnailImage asset={item} />
+        {/* expo-image: ph:// URI'ları hem foto hem video için native olarak çözümlenir */}
+        <Image
+          source={{ uri: item.uri }}
+          style={styles.tileImage}
+          contentFit="cover"
+          transition={150}
+        />
+        {/* Video göstergesi: süre badge'i */}
+        {item.mediaType === 'video' && (
+          <View style={styles.videoBadge}>
+            <Text style={styles.videoBadgeText}>
+              {item.duration != null && item.duration > 0
+                ? `▶ ${formatDuration(item.duration)}`
+                : '▶'}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     ),
     [handleSelect],
@@ -349,6 +267,24 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: COLORS.card,
+  },
+  tileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  videoBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  videoBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
   centerLoader: {
     flex: 1,

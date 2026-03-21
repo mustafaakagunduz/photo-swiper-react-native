@@ -23,7 +23,8 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-image"
     ],
     "newArchEnabled": true
   }
