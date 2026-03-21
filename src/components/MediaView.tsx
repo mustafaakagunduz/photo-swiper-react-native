@@ -1,19 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
-  Image,
   ActivityIndicator,
   StyleSheet,
   TouchableWithoutFeedback,
   Text,
 } from 'react-native';
-import * as MediaLibrary from 'expo-media-library';
+import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import type { Asset } from '../types';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
 
 // ---------------------------------------------------------------------------
-// Video component — resolves localUri before attempting playback
+// Video component — ph:// URI'yı doğrudan AVPlayer'a verir (sandbox-safe)
 // ---------------------------------------------------------------------------
 
 interface VideoMediaProps {
@@ -22,62 +21,38 @@ interface VideoMediaProps {
 }
 
 function VideoMedia({ asset, isActive }: VideoMediaProps) {
-  const [localUri, setLocalUri] = useState<string | null>(null);
-  const [resolving, setResolving] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
+  const [playerReady, setPlayerReady] = useState(false);
 
-  // Resolve ph:// → file:// URI via getAssetInfoAsync
-  useEffect(() => {
-    let cancelled = false;
-    setResolving(true);
-    setLocalUri(null);
-
-    MediaLibrary.getAssetInfoAsync(asset)
-      .then((info) => {
-        if (!cancelled) {
-          setLocalUri(info.localUri ?? asset.uri);
-          setResolving(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          // Fall back to the ph:// URI and hope for the best
-          setLocalUri(asset.uri);
-          setResolving(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [asset]);
-
-  // Player'ı kaynaksız başlat — useVideoPlayer(localUri) yaklaşımı
-  // localUri null→string geçişinde player'ı otomatik güncellemez.
-  // Bunun yerine player.replace() ile açıkça kaynak yüklüyoruz.
+  // ph:// URI'yı doğrudan ver — AVPlayer natively destekler.
+  // file:// çevirisi PlayerRemoteXPC sandbox'ını ihlal eder (err=-12860 / -17507).
   const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = true;
   });
 
-  // localUri çözümlenince kaynağı yükle
+  // asset değişince source yükle; bittikten sonra playerReady=true
   useEffect(() => {
-    if (!localUri) return;
-    player.replaceAsync(localUri).catch((e) =>
-      console.warn('[MediaView] replaceAsync failed:', e),
-    );
-  }, [localUri, player]);
+    setPlayerReady(false);
+    player
+      .replaceAsync(asset.uri)
+      .then(() => setPlayerReady(true))
+      .catch((e) => {
+        console.warn('[MediaView] replaceAsync failed:', e);
+        setPlayerReady(true);
+      });
+  }, [asset.uri, player]);
 
-  // Aktif/pasif duruma göre oynat / durdur
+  // play() yalnızca source yüklendikten sonra çalışır
   useEffect(() => {
-    if (!localUri) return;
+    if (!playerReady) return;
     if (isActive) {
       player.muted = isMuted;
       player.play();
     } else {
       player.pause();
     }
-  }, [isActive, localUri, player, isMuted]);
+  }, [isActive, playerReady, player, isMuted]);
 
   const toggleMute = useCallback(() => {
     const next = !isMuted;
@@ -85,20 +60,14 @@ function VideoMedia({ asset, isActive }: VideoMediaProps) {
     player.muted = next;
   }, [isMuted, player]);
 
-  if (resolving) {
-    return (
-      <View style={styles.mediaContainer}>
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator color={COLORS.textSecondary} size="large" />
-          <Text style={styles.loadingLabel}>Video yükleniyor…</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <TouchableWithoutFeedback onPress={toggleMute}>
       <View style={styles.mediaContainer}>
+        {!playerReady && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color={COLORS.textSecondary} size="large" />
+          </View>
+        )}
         <VideoView
           player={player}
           style={styles.media}
@@ -121,62 +90,18 @@ function VideoMedia({ asset, isActive }: VideoMediaProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Photo component
+// Photo component — expo-image ph:// natively destekler
 // ---------------------------------------------------------------------------
 
 function PhotoMedia({ asset }: { asset: Asset }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [uri, setUri] = useState<string | null>(null);
-
-  // Resolve ph:// → file:// URI (same approach as VideoMedia)
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    setUri(null);
-
-    MediaLibrary.getAssetInfoAsync(asset)
-      .then((info) => {
-        if (!cancelled) {
-          setUri(info.localUri ?? asset.uri);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUri(asset.uri);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [asset.id]);
-
   return (
     <View style={styles.mediaContainer}>
-      {(loading || !uri) && !error && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator color={COLORS.textSecondary} size="large" />
-        </View>
-      )}
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>Fotoğraf yüklenemedi</Text>
-        </View>
-      ) : uri ? (
-        <Image
-          source={{ uri }}
-          style={styles.media}
-          resizeMode="contain"
-          onLoadEnd={() => setLoading(false)}
-          onError={() => {
-            setLoading(false);
-            setError(true);
-          }}
-        />
-      ) : null}
+      <Image
+        source={{ uri: asset.uri }}
+        style={styles.media}
+        contentFit="contain"
+        transition={200}
+      />
     </View>
   );
 }
