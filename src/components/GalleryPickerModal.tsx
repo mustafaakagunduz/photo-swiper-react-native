@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,63 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
 import type { Asset } from '../types';
+
+// ---------------------------------------------------------------------------
+// ThumbnailImage — ph:// URI'larını file:// URI'ya çevirir
+// (React Native Image bileşeni ph:// scheme'i desteklemiyor)
+// ---------------------------------------------------------------------------
+
+const ThumbnailImage = memo(function ThumbnailImage({ asset }: { asset: Asset }) {
+  const [resolvedUri, setResolvedUri] = useState<string | null>(
+    // ph:// değilse (zaten file:// vb.) doğrudan kullan
+    asset.uri.startsWith('ph://') ? null : asset.uri,
+  );
+
+  useEffect(() => {
+    if (!asset.uri.startsWith('ph://')) return;
+    let cancelled = false;
+
+    // Asset nesnesini ver — getAssetInfoAsync localUri'yi döndürür
+    MediaLibrary.getAssetInfoAsync(asset)
+      .then((info) => {
+        if (!cancelled && info.localUri) {
+          setResolvedUri(info.localUri);
+        }
+      })
+      .catch(() => {
+        // Çözümlenemezse boş bırak, placeholder görünür
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [asset.id]); // asset.id yeterli, tüm asset nesnesi gerekmez
+
+  if (!resolvedUri) {
+    // Çözümlenene kadar yer tutucu
+    return <View style={thumbStyles.placeholder} />;
+  }
+
+  return (
+    <Image
+      source={{ uri: resolvedUri }}
+      style={thumbStyles.image}
+      resizeMode="cover"
+    />
+  );
+});
+
+const thumbStyles = StyleSheet.create({
+  placeholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.card,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+});
 
 const GRID_COLS = 3;
 const GAP = 2;
@@ -127,12 +184,7 @@ export default function GalleryPickerModal({
         onPress={() => handleSelect(item, index)}
         activeOpacity={0.7}
       >
-        {/* ph:// URI'ları iOS'ta thumbnail olarak çalışır, getAssetInfoAsync gerekmez */}
-        <Image
-          source={{ uri: item.uri }}
-          style={styles.tileImage}
-          resizeMode="cover"
-        />
+        <ThumbnailImage asset={item} />
         {item.mediaType === 'video' && (
           <View style={styles.videoBadge}>
             <Text style={styles.videoBadgeText}>▶</Text>
@@ -252,10 +304,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: COLORS.card,
-  },
-  tileImage: {
-    width: '100%',
-    height: '100%',
   },
   videoBadge: {
     position: 'absolute',

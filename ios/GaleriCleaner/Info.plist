@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Galeri Cleaner</string>
+	<string>Swipex</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,9 +45,9 @@
 		<true/>
 	</dict>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Galeri Cleaner, değişiklikleri kaydetmek için galeriye erişmek istiyor.</string>
+	<string>Swipex, değişiklikleri kaydetmek için galeriye erişmek istiyor.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Galeri Cleaner, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.</string>
+	<string>Swipex, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

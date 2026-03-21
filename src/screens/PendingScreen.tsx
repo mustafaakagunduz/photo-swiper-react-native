@@ -31,7 +31,14 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
   const [deleteState, setDeleteState] = useState<DeleteState>('idle');
   const [uriMap, setUriMap] = useState<Record<string, string>>({});
 
-  // Resolve ph:// → file:// URIs for thumbnails
+  // Kurtarılmak istenen asset ID'leri
+  const [rescuedIds, setRescuedIds] = useState<Set<string>>(new Set());
+
+  // Tamamlandıktan sonra gösterilecek sayılar
+  const [finalDeletedCount, setFinalDeletedCount] = useState(0);
+  const [finalRescuedCount, setFinalRescuedCount] = useState(0);
+
+  // ph:// → file:// çözümleme
   useEffect(() => {
     let cancelled = false;
     Promise.all(
@@ -49,42 +56,121 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
     return () => { cancelled = true; };
   }, [assets]);
 
+  // Fotoğrafa dokunulunca kurtarma durumunu toggle et
+  const toggleRescue = useCallback((id: string) => {
+    setRescuedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const toDeleteAssets = assets.filter((a) => !rescuedIds.has(a.id));
+  const deleteCount = toDeleteAssets.length;
+  const rescueCount = rescuedIds.size;
+
   const handleDelete = useCallback(async () => {
+    // Hepsi kurtarıldıysa direkt tamamla
+    if (deleteCount === 0) {
+      setFinalDeletedCount(0);
+      setFinalRescuedCount(rescuedIds.size);
+      onDeleted(0);
+      setDeleteState('done');
+      return;
+    }
+
     setDeleteState('deleting');
-    const ids = assets.map((a) => a.id);
+    const ids = toDeleteAssets.map((a) => a.id);
     try {
       const success = await MediaLibrary.deleteAssetsAsync(ids);
       if (success) {
+        setFinalDeletedCount(ids.length);
+        setFinalRescuedCount(rescuedIds.size);
         onDeleted(ids.length);
         setDeleteState('done');
       } else {
-        // User cancelled iOS dialog
+        // Kullanıcı iOS onay dialogunu iptal etti
         setDeleteState('idle');
       }
     } catch {
       setDeleteState('idle');
     }
-  }, [assets, onDeleted]);
+  }, [deleteCount, toDeleteAssets, rescuedIds, onDeleted]);
 
-  const renderItem = useCallback(({ item }: { item: Asset }) => {
-    const uri = uriMap[item.id];
+  const renderItem = useCallback(
+    ({ item }: { item: Asset }) => {
+      const uri = uriMap[item.id];
+      const isRescued = rescuedIds.has(item.id);
+
+      return (
+        <TouchableOpacity
+          style={[styles.thumb, isRescued && styles.thumbRescued]}
+          onPress={() => toggleRescue(item.id)}
+          activeOpacity={0.75}
+        >
+          {uri ? (
+            <Image source={{ uri }} style={styles.thumbImg} resizeMode="cover" />
+          ) : (
+            <View style={[styles.thumbImg, styles.thumbPlaceholder]}>
+              <ActivityIndicator size="small" color={COLORS.textTertiary} />
+            </View>
+          )}
+
+          {/* Video badge */}
+          {item.mediaType === 'video' && !isRescued && (
+            <View style={styles.videoBadge}>
+              <Text style={styles.videoBadgeText}>▶</Text>
+            </View>
+          )}
+
+          {/* Kurtarıldı overlay */}
+          {isRescued && (
+            <View style={styles.rescuedOverlay}>
+              <View style={styles.rescuedCheck}>
+                <Text style={styles.rescuedCheckText}>✓</Text>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    },
+    [uriMap, rescuedIds, toggleRescue],
+  );
+
+  // ---- Tamamlandı ekranı ----
+  if (deleteState === 'done') {
+    const allRescued = finalDeletedCount === 0 && finalRescuedCount > 0;
     return (
-      <View style={styles.thumb}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.thumbImg} resizeMode="cover" />
-        ) : (
-          <View style={[styles.thumbImg, styles.thumbPlaceholder]}>
-            <ActivityIndicator size="small" color={COLORS.textTertiary} />
-          </View>
-        )}
-        {item.mediaType === 'video' && (
-          <View style={styles.videoBadge}>
-            <Text style={styles.videoBadgeText}>▶</Text>
-          </View>
-        )}
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.doneContainer}>
+          <Text style={styles.doneEmoji}>{allRescued ? '💚' : '✅'}</Text>
+          {finalDeletedCount > 0 && (
+            <Text style={styles.doneText}>
+              {finalDeletedCount} fotoğraf silindi.
+            </Text>
+          )}
+          {finalRescuedCount > 0 && (
+            <Text style={styles.doneRescuedText}>
+              {finalRescuedCount} fotoğraf kurtarıldı.
+            </Text>
+          )}
+          {finalDeletedCount === 0 && finalRescuedCount === 0 && (
+            <Text style={styles.doneText}>Tamamlandı.</Text>
+          )}
+          <TouchableOpacity style={styles.doneButton} onPress={onBack} activeOpacity={0.8}>
+            <Text style={styles.doneButtonText}>Swipe'a Dön</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
-  }, [uriMap]);
+  }
+
+  // ---- Ana ekran ----
+  const allRescued = deleteCount === 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -93,50 +179,74 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
         <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
           <Text style={styles.backText}>← Geri</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{assets.length} Foto Seçildi</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>{assets.length} Foto</Text>
+          {rescueCount > 0 && (
+            <View style={styles.rescueBadge}>
+              <Text style={styles.rescueBadgeText}>{rescueCount} kurtarıldı</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.backButton} />
       </View>
 
-      {deleteState === 'done' ? (
-        <View style={styles.doneContainer}>
-          <Text style={styles.doneEmoji}>✅</Text>
-          <Text style={styles.doneText}>{assets.length} fotoğraf silindi.</Text>
-          <TouchableOpacity style={styles.doneButton} onPress={onBack} activeOpacity={0.8}>
-            <Text style={styles.doneButtonText}>Swipe'a Dön</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <FlatList
-            data={assets}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            numColumns={COLUMNS}
-            contentContainerStyle={styles.grid}
-            columnWrapperStyle={styles.row}
-            showsVerticalScrollIndicator={false}
-          />
+      {/* Hint */}
+      <Text style={styles.hint}>
+        {rescueCount === 0
+          ? 'Korumak istediğin fotoğrafa dokun'
+          : allRescued
+          ? 'Hepsi kurtarıldı — aşağıdan onayla'
+          : `${deleteCount} silinecek · ${rescueCount} kurtarılacak`}
+      </Text>
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.deleteButton, deleteState === 'deleting' && styles.deleteButtonDisabled]}
-              onPress={handleDelete}
-              disabled={deleteState === 'deleting'}
-              activeOpacity={0.8}
-            >
-              {deleteState === 'deleting' ? (
-                <View style={styles.deletingRow}>
-                  <ActivityIndicator color="#fff" />
-                  <Text style={styles.deleteButtonText}>Siliniyor…</Text>
-                </View>
-              ) : (
-                <Text style={styles.deleteButtonText}>🗑️  {assets.length} Fotoğrafı Sil</Text>
-              )}
-            </TouchableOpacity>
-            <Text style={styles.hint}>iOS tek seferlik onay isteyecek</Text>
-          </View>
-        </>
-      )}
+      <FlatList
+        data={assets}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        numColumns={COLUMNS}
+        contentContainerStyle={styles.grid}
+        columnWrapperStyle={styles.row}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        {allRescued ? (
+          // Hepsi kurtarıldı
+          <TouchableOpacity
+            style={styles.allRescuedButton}
+            onPress={handleDelete}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.allRescuedButtonText}>
+              💚  Hepsini Koru & Devam Et
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.deleteButton,
+              deleteState === 'deleting' && styles.deleteButtonDisabled,
+            ]}
+            onPress={handleDelete}
+            disabled={deleteState === 'deleting'}
+            activeOpacity={0.8}
+          >
+            {deleteState === 'deleting' ? (
+              <View style={styles.deletingRow}>
+                <ActivityIndicator color="#fff" />
+                <Text style={styles.deleteButtonText}>Siliniyor…</Text>
+              </View>
+            ) : (
+              <Text style={styles.deleteButtonText}>
+                🗑️  {deleteCount} Fotoğrafı Sil
+                {rescueCount > 0 ? `  ·  ${rescueCount} Koru` : ''}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+        <Text style={styles.footerHint}>iOS tek seferlik onay isteyecek</Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -146,6 +256,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,24 +274,59 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.body,
     color: COLORS.accent,
   },
+  headerCenter: {
+    alignItems: 'center',
+    gap: 4,
+  },
   title: {
     ...TYPOGRAPHY.headline,
     color: COLORS.textPrimary,
   },
+  rescueBadge: {
+    backgroundColor: 'rgba(48,209,88,0.15)',
+    borderWidth: 1,
+    borderColor: COLORS.keepBorder,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  rescueBadgeText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.keep,
+    fontWeight: '600',
+  },
+
+  // Hint
+  hint: {
+    ...TYPOGRAPHY.footnote,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+
+  // Grid
   grid: {
     padding: GAP,
-    paddingBottom: 120,
+    paddingBottom: 130,
   },
   row: {
     gap: GAP,
     marginBottom: GAP,
   },
+
+  // Thumbnails
   thumb: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     backgroundColor: COLORS.card,
     borderRadius: 4,
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  thumbRescued: {
+    borderColor: COLORS.keep,
   },
   thumbImg: {
     width: '100%',
@@ -203,6 +350,30 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
   },
+
+  // Kurtarıldı overlay
+  rescuedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(48,209,88,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rescuedCheck: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.keep,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rescuedCheckText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+
+  // Footer
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -237,22 +408,41 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: 'center',
   },
-  hint: {
+  allRescuedButton: {
+    backgroundColor: COLORS.keep,
+    paddingVertical: 16,
+    borderRadius: 14,
+    width: '100%',
+    alignItems: 'center',
+  },
+  allRescuedButtonText: {
+    ...TYPOGRAPHY.headline,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  footerHint: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textTertiary,
   },
+
+  // Done screen
   doneContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   doneEmoji: {
     fontSize: 64,
+    marginBottom: 4,
   },
   doneText: {
     ...TYPOGRAPHY.title2,
     color: COLORS.textPrimary,
+  },
+  doneRescuedText: {
+    ...TYPOGRAPHY.title2,
+    color: COLORS.keep,
   },
   doneButton: {
     marginTop: 8,

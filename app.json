@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Galeri Cleaner",
+    "name": "Swipex",
     "slug": "galeri-cleaner",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,8 +18,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Galeri Cleaner, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.",
-          "savePhotosPermission": "Galeri Cleaner, değişiklikleri kaydetmek için galeriye erişmek istiyor.",
+          "photosPermission": "Swipex, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.",
+          "savePhotosPermission": "Swipex, değişiklikleri kaydetmek için galeriye erişmek istiyor.",
           "isAccessMediaLocationEnabled": true
         }
       ],
