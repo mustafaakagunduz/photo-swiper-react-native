@@ -20,9 +20,9 @@ import type { Asset } from '../types';
 // (React Native Image bileşeni ph:// scheme'i desteklemiyor)
 // ---------------------------------------------------------------------------
 
-const ThumbnailImage = memo(function ThumbnailImage({ asset }: { asset: Asset }) {
+// Fotoğraf thumbnail: ph:// → file:// çözümle, Image ile göster
+const PhotoThumbnail = memo(function PhotoThumbnail({ asset }: { asset: Asset }) {
   const [resolvedUri, setResolvedUri] = useState<string | null>(
-    // ph:// değilse (zaten file:// vb.) doğrudan kullan
     asset.uri.startsWith('ph://') ? null : asset.uri,
   );
 
@@ -30,35 +30,51 @@ const ThumbnailImage = memo(function ThumbnailImage({ asset }: { asset: Asset })
     if (!asset.uri.startsWith('ph://')) return;
     let cancelled = false;
 
-    // Asset nesnesini ver — getAssetInfoAsync localUri'yi döndürür
     MediaLibrary.getAssetInfoAsync(asset)
       .then((info) => {
-        if (!cancelled && info.localUri) {
-          setResolvedUri(info.localUri);
-        }
+        if (!cancelled && info.localUri) setResolvedUri(info.localUri);
       })
-      .catch(() => {
-        // Çözümlenemezse boş bırak, placeholder görünür
-      });
+      .catch(() => { /* placeholder görünür */ });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [asset.id]); // asset.id yeterli, tüm asset nesnesi gerekmez
+    return () => { cancelled = true; };
+  }, [asset.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!resolvedUri) {
-    // Çözümlenene kadar yer tutucu
-    return <View style={thumbStyles.placeholder} />;
-  }
+  if (!resolvedUri) return <View style={thumbStyles.placeholder} />;
 
   return (
-    <Image
-      source={{ uri: resolvedUri }}
-      style={thumbStyles.image}
-      resizeMode="cover"
-    />
+    <Image source={{ uri: resolvedUri }} style={thumbStyles.image} resizeMode="cover" />
   );
 });
+
+// Video thumbnail: Image video dosyasını render edemez, styled placeholder göster
+const VideoThumbnail = memo(function VideoThumbnail({ asset }: { asset: Asset }) {
+  return (
+    <View style={thumbStyles.videoPlaceholder}>
+      <View style={thumbStyles.playCircle}>
+        <Text style={thumbStyles.playIcon}>▶</Text>
+      </View>
+      {asset.duration != null && asset.duration > 0 && (
+        <View style={thumbStyles.durationBadge}>
+          <Text style={thumbStyles.durationText}>
+            {formatThumbDuration(asset.duration)}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+});
+
+// mediaType'a göre doğru bileşeni seç (conditional hook olmaması için ayrıldı)
+const ThumbnailImage = memo(function ThumbnailImage({ asset }: { asset: Asset }) {
+  if (asset.mediaType === 'video') return <VideoThumbnail asset={asset} />;
+  return <PhotoThumbnail asset={asset} />;
+});
+
+function formatThumbDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 const thumbStyles = StyleSheet.create({
   placeholder: {
@@ -69,6 +85,40 @@ const thumbStyles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  videoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1a1a2e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playIcon: {
+    color: '#fff',
+    fontSize: 14,
+    marginLeft: 2, // optik hizalama
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  durationText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 
@@ -185,11 +235,6 @@ export default function GalleryPickerModal({
         activeOpacity={0.7}
       >
         <ThumbnailImage asset={item} />
-        {item.mediaType === 'video' && (
-          <View style={styles.videoBadge}>
-            <Text style={styles.videoBadgeText}>▶</Text>
-          </View>
-        )}
       </TouchableOpacity>
     ),
     [handleSelect],
@@ -304,20 +349,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: COLORS.card,
-  },
-  videoBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  videoBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
   },
   centerLoader: {
     flex: 1,

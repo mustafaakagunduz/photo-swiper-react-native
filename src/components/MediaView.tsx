@@ -52,14 +52,21 @@ function VideoMedia({ asset, isActive }: VideoMediaProps) {
     };
   }, [asset]);
 
-  const player = useVideoPlayer(localUri, (p) => {
+  // Player'ı kaynaksız başlat — useVideoPlayer(localUri) yaklaşımı
+  // localUri null→string geçişinde player'ı otomatik güncellemez.
+  // Bunun yerine player.replace() ile açıkça kaynak yüklüyoruz.
+  const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = true;
-    if (isActive && localUri) {
-      p.play();
-    }
   });
 
+  // localUri çözümlenince kaynağı yükle
+  useEffect(() => {
+    if (!localUri) return;
+    player.replace(localUri);
+  }, [localUri, player]);
+
+  // Aktif/pasif duruma göre oynat / durdur
   useEffect(() => {
     if (!localUri) return;
     if (isActive) {

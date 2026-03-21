@@ -19,6 +19,12 @@ const GAP = 2;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const THUMB_SIZE = (SCREEN_WIDTH - GAP * (COLUMNS + 1)) / COLUMNS;
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 interface PendingScreenProps {
   assets: Asset[];
   onBack: () => void;
@@ -103,6 +109,7 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
 
   const renderItem = useCallback(
     ({ item }: { item: Asset }) => {
+      const isVideo = item.mediaType === 'video';
       const uri = uriMap[item.id];
       const isRescued = rescuedIds.has(item.id);
 
@@ -112,18 +119,25 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
           onPress={() => toggleRescue(item.id)}
           activeOpacity={0.75}
         >
-          {uri ? (
+          {isVideo ? (
+            /* Video: Image video dosyasını render edemez, placeholder kullan */
+            <View style={styles.videoPlaceholder}>
+              <View style={styles.videoPlayCircle}>
+                <Text style={styles.videoPlayIcon}>▶</Text>
+              </View>
+              {item.duration != null && item.duration > 0 && (
+                <View style={styles.videoDurationBadge}>
+                  <Text style={styles.videoDurationText}>
+                    {formatDuration(item.duration)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : uri ? (
             <Image source={{ uri }} style={styles.thumbImg} resizeMode="cover" />
           ) : (
             <View style={[styles.thumbImg, styles.thumbPlaceholder]}>
               <ActivityIndicator size="small" color={COLORS.textTertiary} />
-            </View>
-          )}
-
-          {/* Video badge */}
-          {item.mediaType === 'video' && !isRescued && (
-            <View style={styles.videoBadge}>
-              <Text style={styles.videoBadgeText}>▶</Text>
             </View>
           )}
 
@@ -337,18 +351,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.surface,
   },
-  videoBadge: {
+  // Video placeholder (Image video dosyasını render edemez)
+  videoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1a1a2e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayIcon: {
+    color: '#fff',
+    fontSize: 14,
+    marginLeft: 2,
+  },
+  videoDurationBadge: {
     position: 'absolute',
     bottom: 4,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.65)',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  videoBadgeText: {
+  videoDurationText: {
     color: '#fff',
     fontSize: 10,
+    fontWeight: '600',
   },
 
   // Kurtarıldı overlay
