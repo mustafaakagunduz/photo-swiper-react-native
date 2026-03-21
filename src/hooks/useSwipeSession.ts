@@ -103,6 +103,7 @@ export function useSwipeSession({
         pendingAssetsRef.current = [...pendingAssetsRef.current, asset];
         const newStats = {
           ...statsRef.current,
+          deleted: statsRef.current.deleted + 1,
           pendingDeleteIds: [...statsRef.current.pendingDeleteIds, asset.id],
         };
         setStats(newStats);

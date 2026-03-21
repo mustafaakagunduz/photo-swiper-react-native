@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface ActionButtonsProps {
   onKeep: () => void;
@@ -18,6 +19,8 @@ export default function ActionButtons({
   onDelete,
   disabled = false,
 }: ActionButtonsProps) {
+  const { t } = useLanguage();
+
   return (
     <View style={styles.container}>
       {/* DELETE button */}
@@ -28,12 +31,12 @@ export default function ActionButtons({
         activeOpacity={0.75}
       >
         <Text style={styles.buttonIcon}>✕</Text>
-        <Text style={[styles.buttonLabel, { color: COLORS.delete }]}>Sil</Text>
+        <Text style={[styles.buttonLabel, { color: COLORS.delete }]}>{t.deleteLabel}</Text>
       </TouchableOpacity>
 
       {/* Hint text */}
       <View style={styles.hintContainer}>
-        <Text style={styles.hintText}>← Sil · Koru →</Text>
+        <Text style={styles.hintText}>{t.swipeHint}</Text>
       </View>
 
       {/* KEEP button */}
@@ -44,7 +47,7 @@ export default function ActionButtons({
         activeOpacity={0.75}
       >
         <Text style={styles.buttonIcon}>✓</Text>
-        <Text style={[styles.buttonLabel, { color: COLORS.keep }]}>Koru</Text>
+        <Text style={[styles.buttonLabel, { color: COLORS.keep }]}>{t.keepLabel}</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import type { SessionStats } from '../types';
 
 interface ResultScreenProps {
@@ -27,23 +28,24 @@ interface ResultScreenProps {
 type DeleteState = 'pending' | 'deleting' | 'done' | 'cancelled';
 
 export default function ResultScreen({ result, onRestart, onBulkDelete }: ResultScreenProps) {
+  const { t } = useLanguage();
   const [deleteState, setDeleteState] = useState<DeleteState>(
     result.pendingDeleteIds.length > 0 ? 'pending' : 'done',
   );
   const [deletedCount, setDeletedCount] = useState(result.deleted);
 
   const headerOpacity = useSharedValue(0);
-  const card1Scale = useSharedValue(0.7);
-  const card2Scale = useSharedValue(0.7);
-  const card3Scale = useSharedValue(0.7);
+  const card1Scale = useSharedValue(0.85);
+  const card2Scale = useSharedValue(0.85);
+  const card3Scale = useSharedValue(0.85);
   const buttonOpacity = useSharedValue(0);
 
   useEffect(() => {
-    headerOpacity.value = withTiming(1, { duration: 400 });
-    card1Scale.value = withDelay(100, withSpring(1, { damping: 15, stiffness: 180 }));
-    card2Scale.value = withDelay(200, withSpring(1, { damping: 15, stiffness: 180 }));
-    card3Scale.value = withDelay(300, withSpring(1, { damping: 15, stiffness: 180 }));
-    buttonOpacity.value = withDelay(500, withTiming(1, { duration: 350 }));
+    headerOpacity.value = withTiming(1, { duration: 350 });
+    card1Scale.value = withDelay(80, withSpring(1, { damping: 18, stiffness: 200 }));
+    card2Scale.value = withDelay(160, withSpring(1, { damping: 18, stiffness: 200 }));
+    card3Scale.value = withDelay(240, withSpring(1, { damping: 18, stiffness: 200 }));
+    buttonOpacity.value = withDelay(400, withTiming(1, { duration: 300 }));
   }, [headerOpacity, card1Scale, card2Scale, card3Scale, buttonOpacity]);
 
   const headerStyle = useAnimatedStyle(() => ({ opacity: headerOpacity.value }));
@@ -65,11 +67,10 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
 
   const pendingCount = result.pendingDeleteIds.length;
   const finalDeleted = deleteState === 'done' ? deletedCount : 0;
-  const finalKept = result.kept + (deleteState !== 'done' ? pendingCount : 0);
   const deleteRate =
     result.total > 0 ? Math.round((finalDeleted / result.total) * 100) : 0;
 
-  const summary = getSummaryMessage(deleteRate, deleteState, pendingCount);
+  const summaryMessage = getSummaryMessage(t, deleteRate, deleteState, pendingCount);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -79,25 +80,24 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
       >
         {/* Header */}
         <Animated.View style={[styles.header, headerStyle]}>
-          <Text style={styles.celebration}>{summary.emoji}</Text>
-          <Text style={styles.title}>Oturum Tamamlandı</Text>
-          <Text style={styles.subtitle}>{summary.message}</Text>
+          <Text style={styles.title}>{t.sessionCompleted}</Text>
+          <Text style={styles.subtitle}>{summaryMessage}</Text>
         </Animated.View>
 
-        {/* Bulk delete action — shown when there are pending deletes */}
+        {/* Bulk delete action */}
         {(deleteState === 'pending' || deleteState === 'deleting' || deleteState === 'cancelled') && pendingCount > 0 && (
           <Animated.View style={[styles.bulkDeleteCard, card1Style]}>
             <Text style={styles.bulkDeleteTitle}>
-              {pendingCount} fotoğraf silinmeyi bekliyor
+              {t.pendingDeleteTitle(pendingCount)}
             </Text>
             <Text style={styles.bulkDeleteSubtitle}>
-              Tek bir onay ile hepsini sil — iOS tek seferlik izin ister.
+              {t.iosSingleConfirm}
             </Text>
 
             {deleteState === 'deleting' ? (
               <View style={styles.deletingRow}>
                 <ActivityIndicator color={COLORS.delete} />
-                <Text style={styles.deletingText}>Siliniyor…</Text>
+                <Text style={styles.deletingText}>{t.deletingLabel}</Text>
               </View>
             ) : (
               <>
@@ -107,14 +107,12 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
                   activeOpacity={0.8}
                 >
                   <Text style={styles.deleteButtonText}>
-                    🗑️  {pendingCount} Fotoğrafı Sil
+                    {t.deleteNPhotos(pendingCount)}
                   </Text>
                 </TouchableOpacity>
 
                 {deleteState === 'cancelled' && (
-                  <Text style={styles.cancelledText}>
-                    İptal edildi — fotoğraflar silinmedi.
-                  </Text>
+                  <Text style={styles.cancelledText}>{t.cancelledMsg}</Text>
                 )}
               </>
             )}
@@ -124,34 +122,31 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
         {/* Stat cards */}
         <View style={styles.statsGrid}>
           <Animated.View style={[styles.statCard, styles.statCardDelete, card1Style]}>
-            <Text style={styles.statIcon}>🗑️</Text>
             <Text style={[styles.statValue, { color: COLORS.delete }]}>
               {deleteState === 'done' ? finalDeleted : (deleteState === 'pending' || deleteState === 'cancelled') ? pendingCount : 0}
             </Text>
             <Text style={styles.statLabel}>
-              {deleteState === 'done' ? 'Silindi' : 'Silinecek'}
+              {deleteState === 'done' ? t.statDeleted : t.statToDelete}
             </Text>
             {deleteState === 'done' && (
-              <Text style={styles.statSubLabel}>(Son Silinenler'e taşındı)</Text>
+              <Text style={styles.statSubLabel}>{t.movedToRecent}</Text>
             )}
           </Animated.View>
 
           <Animated.View style={[styles.statCard, styles.statCardKeep, card2Style]}>
-            <Text style={styles.statIcon}>✅</Text>
             <Text style={[styles.statValue, { color: COLORS.keep }]}>
               {result.kept}
             </Text>
-            <Text style={styles.statLabel}>Tutuldu</Text>
+            <Text style={styles.statLabel}>{t.statKept}</Text>
           </Animated.View>
 
           <Animated.View style={[styles.statCard, styles.statCardTotal, card3Style]}>
-            <Text style={styles.statIcon}>📊</Text>
             <Text style={[styles.statValue, { color: COLORS.accent }]}>
               {result.total}
             </Text>
-            <Text style={styles.statLabel}>Toplam</Text>
+            <Text style={styles.statLabel}>{t.statTotal}</Text>
             {deleteState === 'done' && (
-              <Text style={styles.statSubLabel}>{deleteRate}% temizlendi</Text>
+              <Text style={styles.statSubLabel}>{t.cleanedPercent(deleteRate)}</Text>
             )}
           </Animated.View>
         </View>
@@ -188,11 +183,11 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
               color={COLORS.delete}
               label={
                 deleteState === 'done'
-                  ? `Silindi (${finalDeleted})`
-                  : `Silinecek (${pendingCount})`
+                  ? `${t.statDeleted} (${finalDeleted})`
+                  : `${t.statToDelete} (${pendingCount})`
               }
             />
-            <LegendDot color={COLORS.keep} label={`Tutuldu (${result.kept})`} />
+            <LegendDot color={COLORS.keep} label={`${t.statKept} (${result.kept})`} />
           </View>
         </Animated.View>
 
@@ -203,12 +198,10 @@ export default function ResultScreen({ result, onRestart, onBulkDelete }: Result
             onPress={onRestart}
             activeOpacity={0.8}
           >
-            <Text style={styles.restartButtonText}>🔄  Yeni Oturum Başlat</Text>
+            <Text style={styles.restartButtonText}>{t.newSession}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.disclaimer}>
-            Silinen öğeler iOS "Son Silinenler" klasöründe{'\n'}30 gün boyunca saklanır.
-          </Text>
+          <Text style={styles.disclaimer}>{t.recentFilesNote}</Text>
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -225,28 +218,20 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 function getSummaryMessage(
+  t: ReturnType<typeof useLanguage>['t'],
   deleteRate: number,
   state: DeleteState,
   pendingCount: number,
-): { emoji: string; message: string } {
+): string {
   if (state === 'pending' || state === 'cancelled') {
-    if (pendingCount === 0) return { emoji: '📱', message: 'Hiçbir şey işaretlemedin.' };
-    return {
-      emoji: '🗑️',
-      message: `${pendingCount} fotoğraf silme için işaretlendi.`,
-    };
+    if (pendingCount === 0) return t.summaryNone;
+    return t.summaryPending(pendingCount);
   }
-  if (deleteRate === 0) {
-    return { emoji: '📱', message: 'Hiçbir şey silmedin, galerin aynen korundu.' };
-  } else if (deleteRate < 10) {
-    return { emoji: '🧹', message: 'Küçük bir temizlik yaptın!' };
-  } else if (deleteRate < 30) {
-    return { emoji: '✨', message: 'Galerini güzel bir şekilde temizledin.' };
-  } else if (deleteRate < 60) {
-    return { emoji: '🚀', message: 'Harika! Ciddi bir temizlik yaptın.' };
-  } else {
-    return { emoji: '🔥', message: 'Vay be! Galerin neredeyse sıfırlandı.' };
-  }
+  if (deleteRate === 0) return t.summaryZero;
+  if (deleteRate < 10) return t.summarySmall;
+  if (deleteRate < 30) return t.summaryMedium;
+  if (deleteRate < 60) return t.summaryLarge;
+  return t.summaryMax;
 }
 
 const styles = StyleSheet.create({
@@ -257,16 +242,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 32,
     paddingBottom: 40,
-    gap: 24,
+    gap: 20,
   },
   header: {
-    alignItems: 'center',
     gap: 8,
-  },
-  celebration: {
-    fontSize: 64,
     marginBottom: 4,
   },
   title: {
@@ -276,13 +257,12 @@ const styles = StyleSheet.create({
   subtitle: {
     ...TYPOGRAPHY.body,
     color: COLORS.textSecondary,
-    textAlign: 'center',
   },
   bulkDeleteCard: {
-    backgroundColor: 'rgba(255,69,58,0.1)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(255,69,58,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.deleteBorder,
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 20,
     gap: 12,
     alignItems: 'center',
@@ -309,7 +289,7 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     ...TYPOGRAPHY.headline,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   deletingRow: {
     flexDirection: 'row',
@@ -327,15 +307,15 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   statCard: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   statCardDelete: {
     backgroundColor: COLORS.deleteLight,
@@ -346,16 +326,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.keepBorder,
   },
   statCardTotal: {
-    backgroundColor: 'rgba(10,132,255,0.1)',
-    borderColor: 'rgba(10,132,255,0.3)',
-  },
-  statIcon: {
-    fontSize: 28,
+    backgroundColor: 'rgba(10,132,255,0.08)',
+    borderColor: 'rgba(10,132,255,0.25)',
   },
   statValue: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    lineHeight: 40,
   },
   statLabel: {
     ...TYPOGRAPHY.footnote,
@@ -366,17 +344,21 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.caption,
     color: COLORS.textTertiary,
     textAlign: 'center',
+    lineHeight: 16,
+    marginTop: 2,
   },
   summaryBar: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
     padding: 16,
     gap: 12,
   },
   summaryBarFill: {
     flexDirection: 'row',
-    height: 12,
-    borderRadius: 6,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: COLORS.border,
   },
@@ -394,9 +376,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   legendLabel: {
     ...TYPOGRAPHY.footnote,
@@ -413,15 +395,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     width: '100%',
     alignItems: 'center',
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
   },
   restartButtonText: {
     ...TYPOGRAPHY.headline,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   disclaimer: {
     ...TYPOGRAPHY.caption,

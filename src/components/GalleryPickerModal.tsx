@@ -13,10 +13,8 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import type { Asset } from '../types';
-
-// expo-image ph:// URI'larını natively destekler:
-// fotoğraflar için tam çözünürlük, videolar için otomatik ilk kare thumbnail.
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -31,13 +29,9 @@ const TILE_SIZE =
 const PICKER_BATCH = 120;
 
 export interface PickerSelection {
-  /** Seçilen asset (başlangıç noktası) */
   asset: Asset;
-  /** Seçilen asset dahil o asset'ten sona kadar yüklenmiş tüm asset'ler */
   slicedAssets: Asset[];
-  /** Modal'ın yüklediği son sayfanın endCursor'ı (daha fazla yüklemek için) */
   endCursor: string | undefined;
-  /** Modal'da daha yüklenecek asset var mı */
   hasMore: boolean;
 }
 
@@ -52,18 +46,17 @@ export default function GalleryPickerModal({
   onClose,
   onSelect,
 }: GalleryPickerModalProps) {
+  const { t } = useLanguage();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [endCursor, setEndCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Ref'ler stale-closure sorununu önler
   const loadingRef = useRef(false);
   const endCursorRef = useRef<string | undefined>(undefined);
   const hasMoreRef = useRef(true);
   const assetsRef = useRef<Asset[]>([]);
 
-  // State değiştiğinde ref'leri güncelle
   endCursorRef.current = endCursor;
   hasMoreRef.current = hasMore;
   assetsRef.current = assets;
@@ -81,7 +74,7 @@ export default function GalleryPickerModal({
         ],
         first: PICKER_BATCH,
         after,
-        sortBy: [[MediaLibrary.SortBy.creationTime, false]], // en yeniden eskiye
+        sortBy: [[MediaLibrary.SortBy.creationTime, false]],
       });
 
       setAssets((prev) =>
@@ -97,7 +90,6 @@ export default function GalleryPickerModal({
     }
   }, []);
 
-  // Modal her açıldığında sıfırla ve ilk batch'i yükle
   useEffect(() => {
     if (visible) {
       setAssets([]);
@@ -136,14 +128,12 @@ export default function GalleryPickerModal({
         onPress={() => handleSelect(item, index)}
         activeOpacity={0.7}
       >
-        {/* expo-image: ph:// URI'ları hem foto hem video için native olarak çözümlenir */}
         <Image
           source={{ uri: item.uri }}
           style={styles.tileImage}
           contentFit="cover"
           transition={150}
         />
-        {/* Video göstergesi: süre badge'i */}
         {item.mediaType === 'video' && (
           <View style={styles.videoBadge}>
             <Text style={styles.videoBadgeText}>
@@ -168,30 +158,25 @@ export default function GalleryPickerModal({
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Başlık */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.cancelText}>İptal</Text>
+            <Text style={styles.cancelText}>{t.cancel}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Başlangıç Noktası</Text>
+          <Text style={styles.title}>{t.startPointTitle}</Text>
 
-          {/* Sağ tarafı dengelemek için boş view */}
           <View style={styles.headerRight} />
         </View>
 
-        <Text style={styles.subtitle}>
-          Kaydırmaya başlamak istediğin fotoğrafa dokun
-        </Text>
+        <Text style={styles.subtitle}>{t.tapToStart}</Text>
 
-        {/* İlk yükleme göstergesi */}
         {isLoading && assets.length === 0 ? (
           <View style={styles.centerLoader}>
             <ActivityIndicator size="large" color={COLORS.accent} />
-            <Text style={styles.loadingText}>Galeri yükleniyor…</Text>
+            <Text style={styles.loadingText}>{t.loadingGallery}</Text>
           </View>
         ) : (
           <FlatList
@@ -213,7 +198,7 @@ export default function GalleryPickerModal({
             ListEmptyComponent={
               !isLoading ? (
                 <View style={styles.empty}>
-                  <Text style={styles.emptyText}>Fotoğraf bulunamadı</Text>
+                  <Text style={styles.emptyText}>{t.noPhotoFound}</Text>
                 </View>
               ) : null
             }

@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import type { Asset } from '../types';
 
 const COLUMNS = 3;
@@ -34,16 +35,12 @@ interface PendingScreenProps {
 type DeleteState = 'idle' | 'deleting' | 'done';
 
 export default function PendingScreen({ assets, onBack, onDeleted }: PendingScreenProps) {
+  const { t } = useLanguage();
   const [deleteState, setDeleteState] = useState<DeleteState>('idle');
-
-  // Kurtarılmak istenen asset ID'leri
   const [rescuedIds, setRescuedIds] = useState<Set<string>>(new Set());
-
-  // Tamamlandıktan sonra gösterilecek sayılar
   const [finalDeletedCount, setFinalDeletedCount] = useState(0);
   const [finalRescuedCount, setFinalRescuedCount] = useState(0);
 
-  // Fotoğrafa dokunulunca kurtarma durumunu toggle et
   const toggleRescue = useCallback((id: string) => {
     setRescuedIds((prev) => {
       const next = new Set(prev);
@@ -61,7 +58,6 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
   const rescueCount = rescuedIds.size;
 
   const handleDelete = useCallback(async () => {
-    // Hepsi kurtarıldıysa direkt tamamla
     if (deleteCount === 0) {
       setFinalDeletedCount(0);
       setFinalRescuedCount(rescuedIds.size);
@@ -80,7 +76,6 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
         onDeleted(ids.length);
         setDeleteState('done');
       } else {
-        // Kullanıcı iOS onay dialogunu iptal etti
         setDeleteState('idle');
       }
     } catch {
@@ -99,17 +94,14 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
           onPress={() => toggleRescue(item.id)}
           activeOpacity={0.75}
         >
-          {/* expo-image: ph:// URI'larını natively destekler (foto + video ilk kare) */}
           <Image source={{ uri: item.uri }} style={styles.thumbImg} contentFit="cover" />
 
-          {/* Video süre badge'i */}
           {isVideo && item.duration != null && item.duration > 0 && (
             <View style={styles.videoBadge}>
               <Text style={styles.videoBadgeText}>{formatDuration(item.duration)}</Text>
             </View>
           )}
 
-          {/* Kurtarıldı overlay */}
           {isRescued && (
             <View style={styles.rescuedOverlay}>
               <View style={styles.rescuedCheck}>
@@ -123,35 +115,34 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
     [rescuedIds, toggleRescue],
   );
 
-  // ---- Tamamlandı ekranı ----
+  // ---- Done screen ----
   if (deleteState === 'done') {
-    const allRescued = finalDeletedCount === 0 && finalRescuedCount > 0;
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.doneContainer}>
-          <Text style={styles.doneEmoji}>{allRescued ? '💚' : '✅'}</Text>
           {finalDeletedCount > 0 && (
-            <Text style={styles.doneText}>
-              {finalDeletedCount} fotoğraf silindi.
-            </Text>
+            <>
+              <Text style={styles.doneCount}>{finalDeletedCount}</Text>
+              <Text style={styles.doneText}>{t.photoDeletedMsg(finalDeletedCount)}</Text>
+            </>
           )}
           {finalRescuedCount > 0 && (
             <Text style={styles.doneRescuedText}>
-              {finalRescuedCount} fotoğraf kurtarıldı.
+              {t.photoRescuedMsg(finalRescuedCount)}
             </Text>
           )}
           {finalDeletedCount === 0 && finalRescuedCount === 0 && (
-            <Text style={styles.doneText}>Tamamlandı.</Text>
+            <Text style={styles.doneText}>{t.doneLabel}</Text>
           )}
           <TouchableOpacity style={styles.doneButton} onPress={onBack} activeOpacity={0.8}>
-            <Text style={styles.doneButtonText}>Swipe'a Dön</Text>
+            <Text style={styles.doneButtonText}>{t.continueBtn}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ---- Ana ekran ----
+  // ---- Main screen ----
   const allRescued = deleteCount === 0;
 
   return (
@@ -159,13 +150,13 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-          <Text style={styles.backText}>← Geri</Text>
+          <Text style={styles.backText}>{t.backBtn}</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.title}>{assets.length} Foto</Text>
+          <Text style={styles.title}>{t.photoCountLabel(assets.length)}</Text>
           {rescueCount > 0 && (
             <View style={styles.rescueBadge}>
-              <Text style={styles.rescueBadgeText}>{rescueCount} kurtarıldı</Text>
+              <Text style={styles.rescueBadgeText}>{t.rescuedCountLabel(rescueCount)}</Text>
             </View>
           )}
         </View>
@@ -175,10 +166,10 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
       {/* Hint */}
       <Text style={styles.hint}>
         {rescueCount === 0
-          ? 'Korumak istediğin fotoğrafa dokun'
+          ? t.tapToRescue
           : allRescued
-          ? 'Hepsi kurtarıldı — aşağıdan onayla'
-          : `${deleteCount} silinecek · ${rescueCount} kurtarılacak`}
+          ? t.allRescuedHint
+          : t.deleteKeepSummary(deleteCount, rescueCount)}
       </Text>
 
       <FlatList
@@ -194,15 +185,12 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
       {/* Footer */}
       <View style={styles.footer}>
         {allRescued ? (
-          // Hepsi kurtarıldı
           <TouchableOpacity
             style={styles.allRescuedButton}
             onPress={handleDelete}
             activeOpacity={0.8}
           >
-            <Text style={styles.allRescuedButtonText}>
-              💚  Hepsini Koru & Devam Et
-            </Text>
+            <Text style={styles.allRescuedButtonText}>{t.keepAllBtn}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -217,17 +205,16 @@ export default function PendingScreen({ assets, onBack, onDeleted }: PendingScre
             {deleteState === 'deleting' ? (
               <View style={styles.deletingRow}>
                 <ActivityIndicator color="#fff" />
-                <Text style={styles.deleteButtonText}>Siliniyor…</Text>
+                <Text style={styles.deleteButtonText}>{t.deletingLabel}</Text>
               </View>
             ) : (
               <Text style={styles.deleteButtonText}>
-                🗑️  {deleteCount} Fotoğrafı Sil
-                {rescueCount > 0 ? `  ·  ${rescueCount} Koru` : ''}
+                {t.deleteBtnLabel(deleteCount, rescueCount)}
               </Text>
             )}
           </TouchableOpacity>
         )}
-        <Text style={styles.footerHint}>iOS tek seferlik onay isteyecek</Text>
+        <Text style={styles.footerHint}>{t.iosConfirmHint}</Text>
       </View>
     </SafeAreaView>
   );
@@ -246,7 +233,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
   backButton: {
@@ -266,7 +253,7 @@ const styles = StyleSheet.create({
   },
   rescueBadge: {
     backgroundColor: 'rgba(48,209,88,0.15)',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.keepBorder,
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -314,7 +301,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // Video süre badge'i
   videoBadge: {
     position: 'absolute',
     bottom: 4,
@@ -330,7 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Kurtarıldı overlay
+  // Rescued overlay
   rescuedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(48,209,88,0.25)',
@@ -359,7 +345,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: COLORS.background,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -380,7 +366,7 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     ...TYPOGRAPHY.headline,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   deletingRow: {
     flexDirection: 'row',
@@ -397,7 +383,7 @@ const styles = StyleSheet.create({
   allRescuedButtonText: {
     ...TYPOGRAPHY.headline,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   footerHint: {
     ...TYPOGRAPHY.caption,
@@ -409,11 +395,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  doneEmoji: {
+  doneCount: {
     fontSize: 64,
-    marginBottom: 4,
+    fontWeight: '800',
+    color: COLORS.delete,
+    letterSpacing: -2,
+    lineHeight: 72,
   },
   doneText: {
     ...TYPOGRAPHY.title2,
@@ -424,15 +413,15 @@ const styles = StyleSheet.create({
     color: COLORS.keep,
   },
   doneButton: {
-    marginTop: 8,
+    marginTop: 16,
     backgroundColor: COLORS.accent,
-    paddingHorizontal: 28,
+    paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 12,
   },
   doneButtonText: {
     ...TYPOGRAPHY.headline,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

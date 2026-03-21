@@ -16,6 +16,7 @@ import GalleryPickerModal, {
   type PickerSelection,
 } from '../components/GalleryPickerModal';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import type { Asset, SessionStats, SwipeDirection } from '../types';
 
 interface SwipeScreenProps {
@@ -24,10 +25,8 @@ interface SwipeScreenProps {
 }
 
 export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenProps) {
-  // Galeri seçici modal görünürlüğü
+  const { t } = useLanguage();
   const [pickerVisible, setPickerVisible] = useState(false);
-
-  // Bu key değişince useSwipeSession state'ini sıfırlar
   const [sessionKey, setSessionKey] = useState('initial');
 
   const {
@@ -59,23 +58,19 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
     resetKey: sessionKey,
   });
 
-  // İlk yüklemede normal akış
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
-  // Kullanıcı galeriden bir başlangıç noktası seçti
   const handlePickerSelect = useCallback(
     ({ slicedAssets, endCursor, hasMore: pickerHasMore }: PickerSelection) => {
       setPickerVisible(false);
-      // Önce verileri yükle, sonra session'ı sıfırla
       initWithData(slicedAssets, endCursor, pickerHasMore);
       setSessionKey(`pick-${Date.now()}`);
     },
     [initWithData],
   );
 
-  // ActionButton'lardan programatik swipe
   const programmaticSwipe = useCallback(
     (direction: SwipeDirection) => {
       const currentAsset = assets[currentIndex];
@@ -93,7 +88,7 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.loadingText}>Galeri yükleniyor…</Text>
+          <Text style={styles.loadingText}>{t.loadingGallery}</Text>
         </View>
       </SafeAreaView>
     );
@@ -103,15 +98,14 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Hata</Text>
+          <Text style={styles.stateLabel}>{t.errorTitle}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={loadInitial}
             activeOpacity={0.8}
           >
-            <Text style={styles.retryText}>Tekrar Dene</Text>
+            <Text style={styles.retryText}>{t.tryAgain}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -122,11 +116,8 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyIcon}>✅</Text>
-          <Text style={styles.emptyTitle}>Galeri Boş</Text>
-          <Text style={styles.emptyMessage}>
-            Galerinizde görüntülenecek fotoğraf veya video bulunamadı.
-          </Text>
+          <Text style={styles.stateLabel}>{t.galleryEmpty}</Text>
+          <Text style={styles.emptyMessage}>{t.noMediaFound}</Text>
         </View>
       </SafeAreaView>
     );
@@ -140,9 +131,8 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.doneIcon}>🎉</Text>
-          <Text style={styles.doneTitle}>Tamamlandı!</Text>
-          <Text style={styles.doneMessage}>Sonuçlar hesaplanıyor…</Text>
+          <Text style={styles.stateLabel}>{t.sessionComplete}</Text>
+          <Text style={styles.doneMessage}>{t.calculatingResults}</Text>
           <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
         </View>
       </SafeAreaView>
@@ -151,25 +141,25 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Progress header */}
       <ProgressHeader
         current={currentIndex + 1}
         total={totalCount > 0 ? totalCount : assets.length}
         stats={stats}
       />
 
-      {/* Başlangıç noktası seç butonu */}
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => setPickerVisible(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.pickerButtonText}>📍 Başlangıç Noktası Seç</Text>
-      </TouchableOpacity>
+      {/* Tool row: start point picker */}
+      <View style={styles.toolRow}>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setPickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.pickerButtonText}>{t.selectStartPoint}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Card stack */}
       <View style={styles.cardArea}>
-        {/* Arka kart (bir sonraki, biraz küçük) */}
         {nextAsset && (
           <SwipeCard
             key={`back-${nextAsset.id}`}
@@ -180,7 +170,6 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
           />
         )}
 
-        {/* Ön kart (mevcut) */}
         {currentAsset && (
           <SwipeCard
             key={`top-${currentAsset.id}`}
@@ -191,7 +180,6 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
           />
         )}
 
-        {/* Daha fazla yüklenirken arka planda gösterge */}
         {needsMoreAssets && (
           <View style={styles.loadingMoreIndicator}>
             <ActivityIndicator color={COLORS.textTertiary} size="small" />
@@ -199,7 +187,7 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
         )}
       </View>
 
-      {/* Bekleyen silme badge'i */}
+      {/* Pending deletion badge */}
       {pendingDeleteIds.length > 0 && (
         <TouchableOpacity
           style={styles.pendingBadge}
@@ -207,19 +195,17 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
           activeOpacity={0.8}
         >
           <Text style={styles.pendingBadgeText}>
-            🗑️  {pendingDeleteIds.length} foto bekliyor — Gör & Sil
+            {t.pendingBadge(pendingDeleteIds.length)}
           </Text>
         </TouchableOpacity>
       )}
 
-      {/* Action buttons */}
       <ActionButtons
         onDelete={() => programmaticSwipe('left')}
         onKeep={() => programmaticSwipe('right')}
         disabled={!currentAsset}
       />
 
-      {/* Galeri seçici modal */}
       <GalleryPickerModal
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
@@ -247,17 +233,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 12,
   },
+  stateLabel: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.3,
+  },
   loadingText: {
     ...TYPOGRAPHY.body,
     color: COLORS.textSecondary,
     marginTop: 8,
-  },
-  errorIcon: {
-    fontSize: 48,
-  },
-  errorTitle: {
-    ...TYPOGRAPHY.title2,
-    color: COLORS.textPrimary,
   },
   errorMessage: {
     ...TYPOGRAPHY.subhead,
@@ -276,25 +261,11 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.headline,
     color: '#fff',
   },
-  emptyIcon: {
-    fontSize: 56,
-  },
-  emptyTitle: {
-    ...TYPOGRAPHY.title1,
-    color: COLORS.textPrimary,
-  },
   emptyMessage: {
     ...TYPOGRAPHY.subhead,
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-  },
-  doneIcon: {
-    fontSize: 56,
-  },
-  doneTitle: {
-    ...TYPOGRAPHY.title1,
-    color: COLORS.textPrimary,
   },
   doneMessage: {
     ...TYPOGRAPHY.subhead,
@@ -304,17 +275,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -32,
   },
-  pickerButton: {
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 4,
     marginBottom: 2,
+  },
+  pickerButton: {
     paddingVertical: 7,
     paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: 'rgba(10,132,255,0.12)',
+    backgroundColor: 'rgba(10,132,255,0.1)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(10,132,255,0.35)',
-    alignSelf: 'flex-start',
+    borderColor: 'rgba(10,132,255,0.3)',
   },
   pickerButtonText: {
     ...TYPOGRAPHY.footnote,
@@ -324,8 +298,8 @@ const styles = StyleSheet.create({
   pendingBadge: {
     marginHorizontal: 20,
     marginBottom: 8,
-    backgroundColor: 'rgba(255,69,58,0.15)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(255,69,58,0.1)',
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.deleteBorder,
     borderRadius: 12,
     paddingVertical: 10,

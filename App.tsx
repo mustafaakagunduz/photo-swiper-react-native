@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LanguageProvider } from './src/i18n/LanguageContext';
 import PermissionScreen from './src/screens/PermissionScreen';
 import SwipeScreen from './src/screens/SwipeScreen';
 import PendingScreen from './src/screens/PendingScreen';
@@ -60,6 +61,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <LanguageProvider>
         <StatusBar style="light" />
 
         {screen === 'permission' && (
@@ -92,6 +94,7 @@ export default function App() {
             onBulkDelete={handleBulkDelete}
           />
         )}
+        </LanguageProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

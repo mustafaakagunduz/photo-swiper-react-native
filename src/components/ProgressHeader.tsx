@@ -5,10 +5,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { COLORS, TYPOGRAPHY } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import type { SessionStats } from '../types';
 
 interface ProgressHeaderProps {
-  current: number; // 1-based index of the current item
+  current: number;
   total: number;
   stats: SessionStats;
 }
@@ -18,25 +19,21 @@ export default function ProgressHeader({
   total,
   stats,
 }: ProgressHeaderProps) {
+  const { t } = useLanguage();
   const progress = total > 0 ? current / total : 0;
 
   const barStyle = useAnimatedStyle(() => ({
     width: withTiming(`${progress * 100}%` as any, { duration: 300 }),
   }));
 
-  // How many are still pending (not yet decided)
-  const pending = Math.max(total - current + 1, 0);
-  // pending includes current one being shown
   const remaining = Math.max(total - stats.kept - stats.deleted, 0);
 
   return (
     <View style={styles.container}>
-      {/* Progress bar */}
       <View style={styles.progressTrack}>
         <Animated.View style={[styles.progressFill, barStyle]} />
       </View>
 
-      {/* Numeric counter */}
       <View style={styles.row}>
         <Text style={styles.counterText}>
           <Text style={styles.counterCurrent}>{Math.min(current, total)}</Text>
@@ -44,11 +41,10 @@ export default function ProgressHeader({
           <Text style={styles.counterTotal}>{total}</Text>
         </Text>
 
-        {/* Stat chips */}
         <View style={styles.chips}>
-          <StatChip value={stats.kept} label="Tutulan" color={COLORS.keep} />
-          <StatChip value={stats.deleted} label="Silinen" color={COLORS.delete} />
-          <StatChip value={remaining} label="Kalan" color={COLORS.textSecondary} />
+          <StatChip value={stats.kept} label={t.statKeptLabel} color={COLORS.keep} />
+          <StatChip value={stats.deleted} label={t.statDeletedLabel} color={COLORS.delete} />
+          <StatChip value={remaining} label={t.statRemainingLabel} color={COLORS.textSecondary} />
         </View>
       </View>
     </View>

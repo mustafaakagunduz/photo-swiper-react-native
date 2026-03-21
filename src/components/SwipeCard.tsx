@@ -19,9 +19,9 @@ import {
   COLORS,
   TYPOGRAPHY,
 } from '../constants/theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import MediaView from './MediaView';
 
-// Extra distance to fly off-screen
 const FLY_DISTANCE = SCREEN_WIDTH * 1.6;
 
 const SPRING_CONFIG = {
@@ -32,10 +32,9 @@ const SPRING_CONFIG = {
 
 interface SwipeCardProps {
   asset: Asset;
-  isTop: boolean; // whether this is the front (active) card
+  isTop: boolean;
   onSwipe: (asset: Asset, direction: SwipeDirection) => void;
-  /** Used to pre-scale the back card */
-  stackPosition: 0 | 1; // 0 = top, 1 = next
+  stackPosition: 0 | 1;
 }
 
 export default function SwipeCard({
@@ -44,11 +43,11 @@ export default function SwipeCard({
   onSwipe,
   stackPosition,
 }: SwipeCardProps) {
+  const { t } = useLanguage();
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const gestureActive = useSharedValue(false);
 
-  // Reset position whenever the asset changes (new card becomes top)
   useEffect(() => {
     translateX.value = 0;
     translateY.value = 0;
@@ -65,28 +64,23 @@ export default function SwipeCard({
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
-      translateY.value = event.translationY * 0.4; // dampen vertical
+      translateY.value = event.translationY * 0.4;
     })
     .onEnd(() => {
       gestureActive.value = false;
       if (translateX.value > SWIPE_THRESHOLD) {
-        // Swipe right → KEEP
         translateX.value = withSpring(FLY_DISTANCE, SPRING_CONFIG, () => {
           runOnJS(triggerSwipe)('right');
         });
       } else if (translateX.value < -SWIPE_THRESHOLD) {
-        // Swipe left → DELETE
         translateX.value = withSpring(-FLY_DISTANCE, SPRING_CONFIG, () => {
           runOnJS(triggerSwipe)('left');
         });
       } else {
-        // Snap back
         translateX.value = withSpring(0, SPRING_CONFIG);
         translateY.value = withSpring(0, SPRING_CONFIG);
       }
     });
-
-  // --- Animated styles ---
 
   const cardStyle = useAnimatedStyle(() => {
     const rotation = interpolate(
@@ -96,7 +90,6 @@ export default function SwipeCard({
       Extrapolation.CLAMP,
     );
 
-    // Back card: scale up slightly as front card is dragged
     if (stackPosition === 1) {
       const dragRatio = Math.min(
         Math.abs(translateX.value) / SWIPE_THRESHOLD,
@@ -119,7 +112,6 @@ export default function SwipeCard({
     };
   });
 
-  // Label opacities — appear as the card is dragged
   const keepLabelStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateX.value,
@@ -140,7 +132,6 @@ export default function SwipeCard({
     return { opacity };
   });
 
-  // Tint overlay on the card image
   const keepTintStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateX.value,
@@ -170,25 +161,19 @@ export default function SwipeCard({
           stackPosition === 1 && styles.backCard,
         ]}
       >
-        {/* Media content */}
         <MediaView asset={asset} isActive={isTop} />
 
-        {/* Green tint when swiping right */}
         <Animated.View style={[StyleSheet.absoluteFill, styles.tint, styles.noPointer, keepTintStyle]} />
-        {/* Red tint when swiping left */}
         <Animated.View style={[StyleSheet.absoluteFill, styles.tint, styles.noPointer, deleteTintStyle]} />
 
-        {/* KORU label */}
         <Animated.View style={[styles.labelContainer, styles.keepLabel, styles.noPointer, keepLabelStyle]}>
-          <Text style={[styles.labelText, { color: COLORS.keep }]}>KORU</Text>
+          <Text style={[styles.labelText, { color: COLORS.keep }]}>{t.keepVerb}</Text>
         </Animated.View>
 
-        {/* SİL label */}
         <Animated.View style={[styles.labelContainer, styles.deleteLabel, styles.noPointer, deleteLabelStyle]}>
-          <Text style={[styles.labelText, { color: COLORS.delete }]}>SİL</Text>
+          <Text style={[styles.labelText, { color: COLORS.delete }]}>{t.deleteVerb}</Text>
         </Animated.View>
 
-        {/* Media type badge */}
         {asset.mediaType === 'video' && (
           <View style={[styles.typeBadge, styles.noPointer]}>
             <Text style={styles.typeBadgeText}>▶ Video</Text>
