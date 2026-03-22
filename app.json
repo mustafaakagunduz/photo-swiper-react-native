@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Swipex",
+    "name": "CheckPass",
     "slug": "galeri-cleaner",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,8 +18,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Swipex, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.",
-          "savePhotosPermission": "Swipex, değişiklikleri kaydetmek için galeriye erişmek istiyor.",
+          "photosPermission": "CheckPass, fotoğraf ve videolarınızı inceleyip yönetmek için galeriye erişmek istiyor.",
+          "savePhotosPermission": "CheckPass, değişiklikleri kaydetmek için galeriye erişmek istiyor.",
           "isAccessMediaLocationEnabled": true
         }
       ],
