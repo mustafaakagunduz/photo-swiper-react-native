@@ -100,7 +100,7 @@ function PhotoMedia({ asset }: { asset: Asset }) {
         source={{ uri: asset.uri }}
         style={styles.media}
         contentFit="contain"
-        transition={200}
+        transition={0}
       />
     </View>
   );

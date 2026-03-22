@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSharedValue } from 'react-native-reanimated';
 import { useMediaAssets } from '../hooks/useMediaAssets';
 import { useSwipeSession } from '../hooks/useSwipeSession';
-import SwipeCard from '../components/SwipeCard';
+import SwipeCard, { ExitCard } from '../components/SwipeCard';
 import ProgressHeader from '../components/ProgressHeader';
 import ActionButtons from '../components/ActionButtons';
 import GalleryPickerModal, {
@@ -24,10 +25,22 @@ interface SwipeScreenProps {
   onViewPending: (assets: Asset[], clearPending: () => void) => void;
 }
 
+interface ExitingCard {
+  asset: Asset;
+  direction: SwipeDirection;
+  startX: number;
+  /** Aynı asset çift commit'e karşı unique key */
+  key: number;
+}
+
 export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenProps) {
   const { t } = useLanguage();
   const [pickerVisible, setPickerVisible] = useState(false);
   const [sessionKey, setSessionKey] = useState('initial');
+  const [exitingCard, setExitingCard] = useState<ExitingCard | null>(null);
+
+  // Top kartın translateX'i — back card animasyonu için paylaşılan shared value
+  const topCardTranslateX = useSharedValue(0);
 
   const {
     assets,
@@ -71,14 +84,35 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
     [initWithData],
   );
 
+  /**
+   * SwipeCard'dan gelen swipe callback'i.
+   * startX: kart gesture bırakıldığındaki translateX — ExitCard animasyonu için.
+   * handleSwipe'ı ANINDA çağırarak next card'ı aktive eder,
+   * ExitCard eski kartın uçuş animasyonunu halleder.
+   */
+  const handleCardSwipe = useCallback(
+    (asset: Asset, direction: SwipeDirection, startX: number) => {
+      setExitingCard({ asset, direction, startX, key: Date.now() });
+      handleSwipe(asset, direction);
+      // topCardTranslateX'i sıfırla (yeni kart için)
+      topCardTranslateX.value = 0;
+    },
+    [handleSwipe, topCardTranslateX],
+  );
+
+  /**
+   * Buton swipe'ı — gesture olmadığından startX=0 ile ortadan uçar
+   */
   const programmaticSwipe = useCallback(
     (direction: SwipeDirection) => {
       const currentAsset = assets[currentIndex];
       if (currentAsset) {
+        setExitingCard({ asset: currentAsset, direction, startX: 0, key: Date.now() });
         handleSwipe(currentAsset, direction);
+        topCardTranslateX.value = 0;
       }
     },
-    [assets, currentIndex, handleSwipe],
+    [assets, currentIndex, handleSwipe, topCardTranslateX],
   );
 
   // --- Render states ---
@@ -160,23 +194,38 @@ export default function SwipeScreen({ onComplete, onViewPending }: SwipeScreenPr
 
       {/* Card stack */}
       <View style={styles.cardArea}>
+        {/* Back card */}
         {nextAsset && (
           <SwipeCard
             key={`back-${nextAsset.id}`}
             asset={nextAsset}
             isTop={false}
-            onSwipe={handleSwipe}
+            onSwipe={handleCardSwipe}
             stackPosition={1}
+            topCardTranslateX={topCardTranslateX}
           />
         )}
 
+        {/* Top card */}
         {currentAsset && (
           <SwipeCard
             key={`top-${currentAsset.id}`}
             asset={currentAsset}
             isTop={true}
-            onSwipe={handleSwipe}
+            onSwipe={handleCardSwipe}
             stackPosition={0}
+            sharedTranslateX={topCardTranslateX}
+          />
+        )}
+
+        {/* ExitCard: uçuş animasyonu top card'dan bağımsız çalışır */}
+        {exitingCard && (
+          <ExitCard
+            key={`exit-${exitingCard.key}`}
+            asset={exitingCard.asset}
+            direction={exitingCard.direction}
+            startX={exitingCard.startX}
+            onComplete={() => setExitingCard(null)}
           />
         )}
 

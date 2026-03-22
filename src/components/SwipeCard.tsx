@@ -5,16 +5,18 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
   runOnJS,
   interpolate,
   Extrapolation,
+  Easing,
+  type SharedValue,
 } from 'react-native-reanimated';
 import type { Asset, SwipeDirection } from '../types';
 import {
   SCREEN_WIDTH,
   SCREEN_HEIGHT,
   SWIPE_THRESHOLD,
-  ROTATION_ANGLE,
   CARD_BORDER_RADIUS,
   COLORS,
   TYPOGRAPHY,
@@ -30,11 +32,65 @@ const SPRING_CONFIG = {
   mass: 0.8,
 };
 
+// ---------------------------------------------------------------------------
+// ExitCard — swipe commit edilince bağımsız uçuş animasyonu yapar
+// Böylece next card anında isTop=true olup gesture'a hazır olur
+// ---------------------------------------------------------------------------
+
+export interface ExitCardProps {
+  asset: Asset;
+  direction: SwipeDirection;
+  /** translateX değeri onSwipe çağrıldığı andaki kart pozisyonu */
+  startX: number;
+  onComplete: () => void;
+}
+
+export function ExitCard({ asset, direction, startX, onComplete }: ExitCardProps) {
+  const translateX = useSharedValue(startX);
+
+  useEffect(() => {
+    const targetX = direction === 'right' ? FLY_DISTANCE : -FLY_DISTANCE;
+    translateX.value = withTiming(
+      targetX,
+      { duration: 220, easing: Easing.out(Easing.quad) },
+      (finished) => {
+        if (finished) runOnJS(onComplete)();
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+    ],
+    zIndex: 100,
+  }));
+
+  return (
+    <Animated.View style={[styles.card, cardStyle]} pointerEvents="none">
+      <MediaView asset={asset} isActive={false} />
+    </Animated.View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SwipeCard
+// ---------------------------------------------------------------------------
+
 interface SwipeCardProps {
   asset: Asset;
   isTop: boolean;
-  onSwipe: (asset: Asset, direction: SwipeDirection) => void;
+  /** startX: kart uçuşa geçtiği andaki translateX — ExitCard için gerekli */
+  onSwipe: (asset: Asset, direction: SwipeDirection, startX: number) => void;
   stackPosition: 0 | 1;
+  /** Top kartın translateX shared value'su — back card animasyonu için (okur) */
+  topCardTranslateX?: SharedValue<number>;
+  /**
+   * isTop=true olan kart için: gesture sırasında translateX değerini buraya yazar.
+   * Back card'ın topCardTranslateX prop'uyla aynı referans olmalı.
+   */
+  sharedTranslateX?: SharedValue<number>;
 }
 
 export default function SwipeCard({
@@ -42,57 +98,50 @@ export default function SwipeCard({
   isTop,
   onSwipe,
   stackPosition,
+  topCardTranslateX,
+  sharedTranslateX,
 }: SwipeCardProps) {
   const { t } = useLanguage();
   const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const gestureActive = useSharedValue(false);
 
   useEffect(() => {
     translateX.value = 0;
-    translateY.value = 0;
-  }, [asset.id, translateX, translateY]);
+  }, [asset.id, translateX]);
 
-  const triggerSwipe = (direction: SwipeDirection) => {
-    onSwipe(asset, direction);
+  const triggerSwipe = (direction: SwipeDirection, startX: number) => {
+    onSwipe(asset, direction, startX);
   };
 
   const panGesture = Gesture.Pan()
     .enabled(isTop)
-    .onBegin(() => {
-      gestureActive.value = true;
-    })
     .onUpdate((event) => {
       translateX.value = event.translationX;
-      translateY.value = event.translationY * 0.4;
+      // Back card'ın scale/opacity animasyonu için top card'ın konumunu paylaş
+      if (sharedTranslateX) sharedTranslateX.value = event.translationX;
     })
     .onEnd(() => {
-      gestureActive.value = false;
       if (translateX.value > SWIPE_THRESHOLD) {
-        translateX.value = withSpring(FLY_DISTANCE, SPRING_CONFIG, () => {
-          runOnJS(triggerSwipe)('right');
-        });
+        // Swipe'ı anında commit et — ExitCard fly-out animasyonunu halleder
+        const startX = translateX.value;
+        if (sharedTranslateX) sharedTranslateX.value = 0;
+        runOnJS(triggerSwipe)('right', startX);
       } else if (translateX.value < -SWIPE_THRESHOLD) {
-        translateX.value = withSpring(-FLY_DISTANCE, SPRING_CONFIG, () => {
-          runOnJS(triggerSwipe)('left');
-        });
+        const startX = translateX.value;
+        if (sharedTranslateX) sharedTranslateX.value = 0;
+        runOnJS(triggerSwipe)('left', startX);
       } else {
+        // Eşiğin altında — geri snap
         translateX.value = withSpring(0, SPRING_CONFIG);
-        translateY.value = withSpring(0, SPRING_CONFIG);
+        if (sharedTranslateX) sharedTranslateX.value = 0;
       }
     });
 
   const cardStyle = useAnimatedStyle(() => {
-    const rotation = interpolate(
-      translateX.value,
-      [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-      [-ROTATION_ANGLE, 0, ROTATION_ANGLE],
-      Extrapolation.CLAMP,
-    );
-
     if (stackPosition === 1) {
+      // Back card: top kartın hareketine göre canlan
+      const sourceX = topCardTranslateX ? topCardTranslateX.value : translateX.value;
       const dragRatio = Math.min(
-        Math.abs(translateX.value) / SWIPE_THRESHOLD,
+        Math.abs(sourceX) / SWIPE_THRESHOLD,
         1,
       );
       const scale = interpolate(dragRatio, [0, 1], [0.94, 1]);
@@ -103,11 +152,10 @@ export default function SwipeCard({
       };
     }
 
+    // Saf yatay kayma — rotasyon ve Y ekseni yok
     return {
       transform: [
         { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotation}deg` },
       ],
     };
   });
